@@ -467,6 +467,74 @@
     }
 
     .custom-cursor.visible { opacity: 1; }
+
+    /* ══════════════════════════════
+       모바일 반응형
+    ══════════════════════════════ */
+    @media (max-width: 768px) {
+
+      /* 헤더 */
+      header { height: 8vh; padding: 0 20px; }
+      .logo  { font-size: 11px; letter-spacing: 0.15em; }
+      .header-center { display: none; }
+      nav { gap: 18px; }
+      nav a { font-size: 10px; }
+
+      /* 갤러리 — 사이드 패널 축소, 사진 넓게 */
+      .gallery { height: 72vh; }
+      .side-panel { flex: 0.5; }
+      .main-photo { flex: 3; }
+
+      /* 커스텀 커서 숨김 (터치 디바이스) */
+      .custom-cursor { display: none !important; }
+      .main-photo    { cursor: default !important; }
+      .strip-clickable { cursor: default; }
+
+      /* 하단 팝업 — 전체 너비 */
+      footer {
+        left: 0; right: 0; bottom: 0;
+        flex-direction: column;
+        pointer-events: all;
+      }
+      .photo-info {
+        max-width: 100%;
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        padding: 14px 20px 12px;
+      }
+      .photo-desc { min-height: 1.8em; }
+      .footer-right { display: none; }
+      .btn-export   { display: none !important; }
+
+      /* 진행 바 */
+      .progress-bar { height: 1px; }
+
+      /* 상세 오버레이 */
+      .detail-photo-wrap { width: 100%; height: 55vh; }
+      .typing-overlay { font-size: 11px; }
+      .detail-close { top: 12px; right: 14px; font-size: 15px; }
+
+      /* 사이드 패널 내부 간격 축소 */
+      .strips-wrap { gap: 3px; }
+      .photo-sep   { width: 1px; }
+    }
+
+    @media (max-width: 480px) {
+      header { height: 7vh; padding: 0 16px; }
+      .gallery { height: 68vh; }
+
+      /* 더 작은 화면: 패널 더 좁게 */
+      .side-panel { flex: 0.35; }
+      .main-photo { flex: 4; }
+
+      .photo-title { font-size: 14px; }
+      .photo-meta  { font-size: 10px; }
+      .photo-desc  { font-size: 10px; }
+
+      /* 스트립 1개만 표시 (클릭 가능한 스트립 유지) */
+      .side-left  .strips-wrap .strip:not(:last-child)  { display: none; }
+      .side-right .strips-wrap .strip:not(:first-child) { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -575,7 +643,7 @@
 
     /* 좌측 패널 (100% 높이 검정) + strips-wrap (애니메이션) */
     const leftPanel = document.createElement('div');
-    leftPanel.className = 'side-panel';
+    leftPanel.className = 'side-panel side-left';
     const leftWrap = document.createElement('div');
     leftWrap.className = 'strips-wrap';
     for (let i = 0; i < 3; i++) {
@@ -599,7 +667,7 @@
 
     /* 우측 패널 (100% 높이 검정) + strips-wrap (애니메이션) */
     const rightPanel = document.createElement('div');
-    rightPanel.className = 'side-panel';
+    rightPanel.className = 'side-panel side-right';
     const rightWrap = document.createElement('div');
     rightWrap.className = 'strips-wrap';
     for (let i = 0; i < 3; i++) {
@@ -838,11 +906,16 @@
   }, { passive: false });
 
   /* 터치 스와이프 — 갤러리 위에서만 사진 전환 */
-  let touchX = 0;
-  gallery.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+  let touchX = 0, touchY = 0;
+  gallery.addEventListener('touchstart', e => {
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
   gallery.addEventListener('touchend', e => {
-    const diff = touchX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 60) go(diff > 0 ? 1 : -1);
+    const dx = touchX - e.changedTouches[0].clientX;
+    const dy = Math.abs(touchY - e.changedTouches[0].clientY);
+    /* 수평 스와이프만 처리 (수직 스크롤과 구분) */
+    if (Math.abs(dx) > 40 && dy < 60) go(dx > 0 ? 1 : -1);
   }, { passive: true });
 
   /* ── 상세 오버레이 ── */
