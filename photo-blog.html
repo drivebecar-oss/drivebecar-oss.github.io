@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LENSCRAFT</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0c0c0c;
+      --text: #e0e0e0;
+      --muted: #606060;
+      --accent: #c8a96e;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: var(--text);
+      user-select: none;
+    }
+
+    /* ── 전체 레이아웃 ── */
+    .layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── HEADER (상단) ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 44px;
+      position: relative;
+      height: 10vh;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .header-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    nav {
+      display: flex;
+      gap: 36px;
+    }
+
+    nav a {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--text);
+      transition: color 0.2s;
+    }
+
+    nav a.active {
+      text-decoration: underline;
+      text-underline-offset: 5px;
+    }
+
+    nav a:hover { color: var(--muted); }
+
+    /* ── GALLERY (중앙) ── */
+    .gallery {
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      height: 80vh;
+      flex-shrink: 0;
+    }
+
+    .gallery:active { cursor: grabbing; }
+
+    .frame {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      background: #000;
+    }
+
+    /* 사진 양옆 흰색 구분선 — strips-wrap 과 함께 애니메이션 */
+    .photo-sep {
+      width: 1px;
+      flex-shrink: 0;
+      background: #fff;
+      align-self: center;
+      height: 5%;
+      transition: height 0.65s cubic-bezier(0.34, 1.3, 0.64, 1);
+    }
+
+    /* 좌우 패널 — 항상 100% 높이, 검정 배경으로 흰색 노출 방지 */
+    .side-panel {
+      flex: 1;
+      display: flex;
+      align-items: center;   /* strips-wrap 을 세로 중앙 정렬 */
+      background: #000;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* 스트립을 담는 래퍼 — 이 높이가 애니메이션됨 */
+    .strips-wrap {
+      display: flex;
+      gap: 5px;
+      background: #fff;      /* 스트립 사이 흰색 선 */
+      width: 100%;
+      height: 100%;          /* JS 로 제어 */
+      transition: height 0.65s cubic-bezier(0.34, 1.3, 0.64, 1);
+    }
+
+    /* 순수 검정 스트립 */
+    .strip {
+      flex: 1;
+      min-width: 0;
+      background: #000;
+    }
+
+    /* 바로 옆 스트립 — 클릭 가능 */
+    .strip-clickable {
+      cursor: pointer;
+      transition: filter 0.3s;
+    }
+
+    .strip-clickable:hover {
+      filter: brightness(2.5);
+    }
+
+    /* 중앙 메인 사진 flex:2 (50%) */
+    .main-photo {
+      flex: 2;
+      min-width: 0;
+      object-fit: contain;
+      display: block;
+      background: #000;
+      align-self: stretch;   /* 사진은 항상 갤러리 전체 높이 유지 */
+      height: 100%;
+    }
+
+    /* ── FOOTER — 고정 팝업 ── */
+    footer {
+      position: fixed;
+      bottom: 28px;
+      left: 44px;
+      right: 44px;
+      z-index: 50;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      pointer-events: none; /* 갤러리 휠 이벤트 통과 */
+      padding: 0;
+    }
+
+    .photo-info {
+      max-width: 340px;
+      background: rgba(10, 10, 10, 0.82);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 18px 22px 16px;
+      pointer-events: all;
+    }
+
+    .photo-title {
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+      transition: opacity 0.4s;
+      outline: none;
+      cursor: text;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.25s;
+      caret-color: var(--accent);
+    }
+
+    .photo-title:focus {
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .photo-title:empty::before {
+      content: '제목';
+      color: rgba(255,255,255,0.18);
+      pointer-events: none;
+    }
+
+    .photo-meta {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      margin-bottom: 11px;
+      outline: none;
+      cursor: text;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.25s;
+      caret-color: var(--accent);
+    }
+
+    .photo-meta:focus {
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .photo-meta:empty::before {
+      content: '연도 — 카테고리';
+      color: rgba(255,255,255,0.18);
+      pointer-events: none;
+    }
+
+    .photo-desc {
+      font-size: 11px;
+      color: #bbbbbb;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      outline: none;
+      min-height: 3.6em;
+      max-width: 420px;
+      cursor: text;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.25s, color 0.25s;
+      caret-color: var(--accent);
+    }
+
+    .photo-desc:focus {
+      color: var(--text);
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .photo-desc:empty::before {
+      content: '사진 설명을 입력하세요...';
+      color: rgba(255,255,255,0.18);
+      pointer-events: none;
+    }
+
+    .footer-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 14px;
+      pointer-events: all;
+    }
+
+    .counter {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .counter-current { font-weight: 600; }
+    .counter-total { color: var(--muted); }
+
+    .arrows { display: flex; gap: 8px; }
+
+    .btn-arrow {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      width: 36px; height: 36px;
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      color: var(--text);
+    }
+
+    .btn-arrow:hover {
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
+    }
+
+    /* 하단 진행 바 */
+    .progress-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: var(--accent);
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+    }
+
+    /* 정보 전환 페이드 */
+    .fade-out { opacity: 0; transition: opacity 0.2s; }
+    .fade-in  { opacity: 1; transition: opacity 0.3s 0.5s; }
+
+    /* ── 사진 상세 오버레이 ── */
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      background: var(--bg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .detail-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* 사진 전체 화면 */
+    .detail-photo-wrap {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: zoom-out;
+      position: relative;
+    }
+
+    /* 사진 위 타이핑 텍스트 — 위치는 JS 로 계산 */
+    .typing-overlay {
+      position: absolute;
+      color: rgba(255,255,255,0.9);
+      font-size: 13px;
+      line-height: 1.9;
+      white-space: pre-wrap;
+      pointer-events: none;
+      z-index: 5;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+      max-width: 520px;
+    }
+
+    .detail-photo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: scale(0.94);
+      transition: transform 0.45s ease;
+    }
+
+    .detail-overlay.open .detail-photo-wrap img {
+      transform: scale(1);
+    }
+
+    /* 우측 패널 숨김 */
+    .detail-panel { display: none; }
+
+    .detail-panel-hidden {
+      width: 25%;
+      height: 100%;
+      padding: 52px 36px 36px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      border-left: 1px solid rgba(255,255,255,0.07);
+      transform: translateX(16px);
+      opacity: 0;
+      transition: transform 0.4s ease 0.1s, opacity 0.4s ease 0.1s;
+    }
+
+    .detail-overlay.open .detail-panel {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .detail-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      outline: none;
+      margin-bottom: 8px;
+      caret-color: var(--accent);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .detail-title:focus { border-bottom-color: rgba(255,255,255,0.15); }
+    .detail-title:empty::before { content: '제목'; color: rgba(255,255,255,0.2); pointer-events: none; }
+
+    .detail-meta {
+      font-size: 12px;
+      color: var(--muted);
+      outline: none;
+      margin-bottom: 32px;
+      caret-color: var(--accent);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .detail-meta:focus { border-bottom-color: rgba(255,255,255,0.15); }
+    .detail-meta:empty::before { content: '연도 — 카테고리'; color: rgba(255,255,255,0.2); pointer-events: none; }
+
+    .detail-desc {
+      font-size: 13px;
+      color: #bbb;
+      line-height: 1.9;
+      outline: none;
+      flex: 1;
+      white-space: pre-wrap;
+      caret-color: var(--accent);
+    }
+
+    .detail-desc:empty::before {
+      content: '사진에 대한 이야기를 적어보세요...';
+      color: rgba(255,255,255,0.18);
+      pointer-events: none;
+    }
+
+    .detail-close {
+      position: absolute;
+      top: 22px;
+      right: 26px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 6px 10px;
+      transition: color 0.2s;
+      line-height: 1;
+    }
+
+    .detail-close:hover { color: var(--text); }
+
+    /* 메인 사진 위에서 기본 커서 숨김 */
+    .main-photo { cursor: none; }
+
+    /* 커스텀 커서 */
+    .custom-cursor {
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 9999;
+      pointer-events: none;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: #fff;
+      mix-blend-mode: difference;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      transition: opacity 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .custom-cursor.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── 상단 섹션 ── -->
+  <header>
+    <div class="logo">LENSCRAFT</div>
+    <div class="header-center" id="clock-display"></div>
+    <nav>
+      <a href="#" class="active">Work</a>
+      <a href="#">About</a>
+    </nav>
+  </header>
+
+  <!-- ── 중앙 섹션 ── -->
+  <div class="gallery" id="gallery"></div>
+
+</div>
+
+<!-- ── 하단 플로트 팝업 (layout 밖, fixed) ── -->
+<footer>
+  <div class="photo-info">
+    <div class="photo-title" id="photo-title" contenteditable="true" spellcheck="false"></div>
+    <div class="photo-meta"  id="photo-meta"  contenteditable="true" spellcheck="false"></div>
+    <div class="photo-desc"  id="photo-desc"  contenteditable="true" spellcheck="false"></div>
+  </div>
+  <div class="footer-right">
+    <div class="counter">
+      <span class="counter-current" id="cur">1</span>
+      <span class="counter-total"   id="tot">/ 5</span>
+    </div>
+    <div class="arrows">
+      <button class="btn-arrow" id="btn-prev" aria-label="이전">&#8592;</button>
+      <button class="btn-arrow" id="btn-next" aria-label="다음">&#8594;</button>
+    </div>
+  </div>
+</footer>
+
+<div class="progress-bar" id="progress"></div>
+<div class="custom-cursor" id="custom-cursor">LOVER</div>
+
+<!-- ── 사진 상세 오버레이 ── -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-photo-wrap" id="detail-photo-wrap">
+    <img id="detail-img" alt="">
+    <div class="typing-overlay" id="typing-overlay"></div>
+  </div>
+  <div class="detail-panel">
+    <div class="detail-title" id="detail-title" contenteditable="true" spellcheck="false"></div>
+    <div class="detail-meta"  id="detail-meta"  contenteditable="true" spellcheck="false"></div>
+    <div class="detail-desc"  id="detail-desc"  contenteditable="true" spellcheck="false"></div>
+  </div>
+  <button class="detail-close" id="detail-close">✕</button>
+</div>
+
+<script>
+  /* ── 데이터 ── */
+  const PHOTOS = [
+    {
+      src: 'images/image1.jpeg',
+      title: 'Image 01',
+      year: '2024',
+      category: 'Photography',
+      desc: '—'
+    },
+    {
+      src: 'images/image2.jpeg',
+      title: 'Image 02',
+      year: '2024',
+      category: 'Photography',
+      desc: '—'
+    },
+    {
+      src: 'images/image3.jpeg',
+      title: 'Image 03',
+      year: '2024',
+      category: 'Photography',
+      desc: '—'
+    },
+  ];
+
+  let current = 0;
+  const total = PHOTOS.length;
+  let animating = false;
+
+  const gallery   = document.getElementById('gallery');
+  const titleEl   = document.getElementById('photo-title');
+  const metaEl    = document.getElementById('photo-meta');
+  const descEl    = document.getElementById('photo-desc');
+  const curEl     = document.getElementById('cur');
+  const totEl     = document.getElementById('tot');
+  const progressEl= document.getElementById('progress');
+
+  totEl.textContent = `/ ${total}`;
+
+  function wrap(i) { return ((i % total) + total) % total; }
+
+  /* 프레임 DOM 생성 */
+  function buildFrame(idx) {
+    const p = PHOTOS[idx];
+
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+
+    /* 좌측 패널 (100% 높이 검정) + strips-wrap (애니메이션) */
+    const leftPanel = document.createElement('div');
+    leftPanel.className = 'side-panel';
+    const leftWrap = document.createElement('div');
+    leftWrap.className = 'strips-wrap';
+    for (let i = 0; i < 3; i++) {
+      const s = document.createElement('div');
+      s.className = 'strip';
+      if (i === 2) {
+        s.classList.add('strip-clickable');
+        s.addEventListener('click', () => go(-1));
+      }
+      leftWrap.appendChild(s);
+    }
+    leftPanel.appendChild(leftWrap);
+
+    /* 메인 사진 */
+    const img = document.createElement('img');
+    img.className = 'main-photo';
+    img.src = p.src;
+    img.alt = p.title;
+    img.draggable = false;
+    img.addEventListener('click', () => openDetail(idx));
+
+    /* 우측 패널 (100% 높이 검정) + strips-wrap (애니메이션) */
+    const rightPanel = document.createElement('div');
+    rightPanel.className = 'side-panel';
+    const rightWrap = document.createElement('div');
+    rightWrap.className = 'strips-wrap';
+    for (let i = 0; i < 3; i++) {
+      const s = document.createElement('div');
+      s.className = 'strip';
+      if (i === 0) {
+        s.classList.add('strip-clickable');
+        s.addEventListener('click', () => go(1));
+      }
+      rightWrap.appendChild(s);
+    }
+    rightPanel.appendChild(rightWrap);
+
+    const leftSep  = document.createElement('div');
+    leftSep.className  = 'photo-sep';
+    const rightSep = document.createElement('div');
+    rightSep.className = 'photo-sep';
+
+    frame.appendChild(leftPanel);
+    frame.appendChild(leftSep);
+    frame.appendChild(img);
+    frame.appendChild(rightSep);
+    frame.appendChild(rightPanel);
+    return frame;
+  }
+
+  /* 하단 정보 업데이트 */
+  function updateMeta(idx) {
+    const p = PHOTOS[idx];
+    [titleEl, metaEl, descEl].forEach(el => el.classList.add('fade-out'));
+
+    setTimeout(() => {
+      titleEl.textContent = p.title === '—' ? '' : (p.title || '');
+      metaEl.textContent  = p.meta  || `${p.year} — ${p.category}`;
+      descEl.textContent  = p.desc  === '—' ? '' : (p.desc || '');
+      curEl.textContent   = idx + 1;
+      progressEl.style.width = `${((idx + 1) / total) * 100}%`;
+      [titleEl, metaEl, descEl].forEach(el => el.classList.remove('fade-out'));
+    }, 220);
+  }
+
+  /* ── localStorage 연동 ── */
+  const STORE_KEY = 'lenscraft_v1';
+
+  function saveToStorage() {
+    const data = PHOTOS.map(p => ({ title: p.title, meta: p.meta, desc: p.desc }));
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  }
+
+  function loadFromStorage() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+      saved.forEach((item, i) => {
+        if (!PHOTOS[i] || !item) return;
+        if (item.title !== undefined) PHOTOS[i].title = item.title;
+        if (item.meta  !== undefined) PHOTOS[i].meta  = item.meta;
+        if (item.desc  !== undefined) PHOTOS[i].desc  = item.desc;
+      });
+    } catch (e) {}
+  }
+
+  /* 제목·메타·설명 입력 시 현재 사진에 저장 + localStorage 업데이트 */
+  titleEl.addEventListener('input', () => { PHOTOS[current].title = titleEl.textContent; saveToStorage(); });
+  metaEl.addEventListener('input',  () => { PHOTOS[current].meta  = metaEl.textContent;  saveToStorage(); });
+  descEl.addEventListener('input',  () => { PHOTOS[current].desc  = descEl.textContent;  saveToStorage(); });
+
+  /* Enter: div 생성 대신 줄바꿈 삽입 (설명만 줄바꿈 허용) */
+  [titleEl, metaEl].forEach(el => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') e.preventDefault();
+    });
+  });
+  descEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.execCommand('insertText', false, '\n');
+    }
+  });
+
+  /* ── 사이드 패널 높이 애니메이션 ── */
+
+  /* 사진이 실제 렌더된 높이 비율 (0~1) 계산 */
+  function getPhotoRatio(img) {
+    if (!img.naturalWidth || !img.clientWidth) return 1;
+    const scale = Math.min(img.clientWidth / img.naturalWidth, img.clientHeight / img.naturalHeight);
+    return Math.min(1, (img.naturalHeight * scale) / img.clientHeight);
+  }
+
+  /* 패널 + 구분선 높이를 사진에 맞게 확장 (이미지 로드 후 실행) */
+  function expandPanels(frame) {
+    const img = frame.querySelector('.main-photo');
+    function doExpand() {
+      const ratio = getPhotoRatio(img);
+      const pct   = (ratio * 100).toFixed(1) + '%';
+      frame.querySelectorAll('.strips-wrap, .photo-sep').forEach(el => {
+        el.style.transition = 'height 0.65s cubic-bezier(0.34, 1.3, 0.64, 1)';
+        el.style.height = pct;
+      });
+    }
+    if (img.complete && img.naturalWidth) doExpand();
+    else img.addEventListener('load', doExpand, { once: true });
+  }
+
+  /* 패널 + 구분선 순간 접기 */
+  function collapsePanels(frame) {
+    frame.querySelectorAll('.strips-wrap, .photo-sep').forEach(el => {
+      el.style.transition = 'height 0.22s ease-in';
+      el.style.height = '5%';
+    });
+  }
+
+  /* 블러 페이드 전환 — 구 사진이 블러+투명 처리되며 사라지고, 뒤의 새 사진이 드러남 */
+  function go(dir) {
+    if (animating) return;
+    animating = true;
+
+    const nextIdx  = wrap(current + dir);
+    const oldFrame = gallery.querySelector('.frame');
+    const newFrame = buildFrame(nextIdx);
+    const DUR = 550;
+
+    /* 새 프레임 strips-wrap + photo-sep 를 접힌 상태로 시작 */
+    newFrame.querySelectorAll('.strips-wrap, .photo-sep').forEach(p => {
+      p.style.transition = 'none';
+      p.style.height = '5%';
+    });
+
+    /* 새 프레임을 구 프레임 뒤에 미리 배치 (완전히 보이는 상태) */
+    newFrame.style.zIndex = '1';
+    oldFrame.style.zIndex = '2';
+    gallery.insertBefore(newFrame, oldFrame);
+    newFrame.getBoundingClientRect();
+
+    /* 구 사진: 블러 + 페이드 아웃 + 패널 접기 */
+    collapsePanels(oldFrame);
+    oldFrame.style.transition = `opacity ${DUR}ms ease, filter ${DUR}ms ease`;
+    oldFrame.style.opacity    = '0';
+    oldFrame.style.filter     = 'blur(28px)';
+
+    setTimeout(() => {
+      oldFrame.remove();
+      current = nextIdx;
+      updateMeta(current);
+      animating = false;
+      /* 새 사진 공개 후 패널 확장 */
+      expandPanels(newFrame);
+    }, DUR);
+  }
+
+  /* 시계 */
+  function tick() {
+    const now  = new Date();
+    let h      = now.getHours();
+    const m    = String(now.getMinutes()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    document.getElementById('clock-display').textContent = `${h}:${m}${ampm}  ·  SEOUL`;
+  }
+  tick();
+  setInterval(tick, 10000);
+
+  /* 버튼 이벤트 */
+  document.getElementById('btn-prev').addEventListener('click', () => go(-1));
+  document.getElementById('btn-next').addEventListener('click', () => go(1));
+
+  /* 키보드 */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape')     closeDetail();
+    if (detailOverlay.classList.contains('open')) return;
+    if (e.key === 'ArrowRight') go(1);
+    if (e.key === 'ArrowLeft')  go(-1);
+  });
+
+  /* 마우스 휠 — 갤러리 위에서만 사진 전환, 그 외는 페이지 스크롤 */
+  let wheelLock = false;
+  gallery.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (wheelLock) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    go(d > 0 ? 1 : -1);
+    wheelLock = true;
+    setTimeout(() => { wheelLock = false; }, 900);
+  }, { passive: false });
+
+  /* 터치 스와이프 — 갤러리 위에서만 사진 전환 */
+  let touchX = 0;
+  gallery.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+  gallery.addEventListener('touchend', e => {
+    const diff = touchX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 60) go(diff > 0 ? 1 : -1);
+  }, { passive: true });
+
+  /* ── 상세 오버레이 ── */
+  const detailOverlay  = document.getElementById('detail-overlay');
+  const detailImg      = document.getElementById('detail-img');
+  const detailTitleEl  = document.getElementById('detail-title');
+  const detailMetaEl   = document.getElementById('detail-meta');
+  const detailDescEl   = document.getElementById('detail-desc');
+  const typingOverlay  = document.getElementById('typing-overlay');
+
+  let typingTimer = null;
+
+  function startTyping(text) {
+    typingOverlay.textContent = '';
+    if (typingTimer) clearInterval(typingTimer);
+    let i = 0;
+    typingTimer = setInterval(() => {
+      if (i < text.length) {
+        typingOverlay.textContent += text[i++];
+      } else {
+        clearInterval(typingTimer);
+        typingTimer = null;
+      }
+    }, 38);
+  }
+
+  function stopTyping() {
+    if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
+    typingOverlay.textContent = '';
+  }
+
+  /* 실제 렌더된 사진의 top/left 오프셋 계산 (object-fit:contain 기준) */
+  function positionTypingOverlay(img) {
+    if (!img.naturalWidth || !img.clientWidth) return;
+    const cW = img.clientWidth, cH = img.clientHeight;
+    const scale = Math.min(cW / img.naturalWidth, cH / img.naturalHeight);
+    const rW    = img.naturalWidth  * scale;
+    const rH    = img.naturalHeight * scale;
+    const pad   = 36;
+    typingOverlay.style.top   = (Math.round((cH - rH) / 2) + pad) + 'px';
+    typingOverlay.style.left  = (Math.round((cW - rW) / 2) + pad) + 'px';
+    typingOverlay.style.right = (Math.round((cW - rW) / 2) + pad) + 'px';
+  }
+
+  function openDetail(idx) {
+    const p = PHOTOS[idx];
+    detailImg.src = p.src;
+    detailTitleEl.textContent = p.title === '—' ? '' : (p.title || '');
+    detailMetaEl.textContent  = p.meta  || `${p.year} — ${p.category}`;
+    detailDescEl.textContent  = p.desc  === '—' ? '' : (p.desc || '');
+    detailOverlay.classList.add('open');
+
+    const title = p.title === '—' ? '' : (p.title || '');
+    const meta  = p.meta  || `${p.year} — ${p.category}`;
+    const desc  = p.desc  === '—' ? '' : (p.desc  || '');
+    const full  = [title, meta, desc].filter(Boolean).join('\n\n');
+
+    stopTyping();
+
+    /* 이미지 크기 확정 후 위치 계산 → 타이핑 시작 */
+    function doType() {
+      positionTypingOverlay(detailImg);
+      setTimeout(() => startTyping(full), 420);
+    }
+    if (detailImg.complete && detailImg.naturalWidth) doType();
+    else detailImg.addEventListener('load', doType, { once: true });
+  }
+
+  function closeDetail() {
+    detailOverlay.classList.remove('open');
+    stopTyping();
+  }
+
+  document.getElementById('detail-close').addEventListener('click', closeDetail);
+  document.getElementById('detail-photo-wrap').addEventListener('click', closeDetail);
+
+  /* 상세 패널 입력 → PHOTOS + 하단 섹션 + localStorage 동기화 */
+  detailTitleEl.addEventListener('input', () => {
+    PHOTOS[current].title = detailTitleEl.textContent;
+    titleEl.textContent   = detailTitleEl.textContent;
+    saveToStorage();
+  });
+  detailMetaEl.addEventListener('input', () => {
+    PHOTOS[current].meta = detailMetaEl.textContent;
+    metaEl.textContent   = detailMetaEl.textContent;
+    saveToStorage();
+  });
+  detailDescEl.addEventListener('input', () => {
+    PHOTOS[current].desc = detailDescEl.textContent;
+    descEl.textContent   = detailDescEl.textContent;
+    saveToStorage();
+  });
+
+  /* 제목·메타 Enter 방지 */
+  [detailTitleEl, detailMetaEl].forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+  });
+
+  /* ── 커스텀 커서 ── */
+  const customCursor = document.getElementById('custom-cursor');
+
+  document.addEventListener('mousemove', e => {
+    customCursor.style.left = e.clientX + 'px';
+    customCursor.style.top  = e.clientY + 'px';
+  });
+
+  /* 갤러리 내 .main-photo 위에서만 LOVER 표시 (이벤트 위임) */
+  gallery.addEventListener('mouseover', e => {
+    if (e.target.classList.contains('main-photo')) customCursor.classList.add('visible');
+  });
+  gallery.addEventListener('mouseout', e => {
+    if (e.target.classList.contains('main-photo')) customCursor.classList.remove('visible');
+  });
+
+  /* 초기화 — localStorage에서 저장된 글 불러온 뒤 렌더링 */
+  loadFromStorage();
+  const initial = buildFrame(0);
+  /* 초기 패널: 접힌 상태에서 펼침 */
+  initial.querySelectorAll('.strips-wrap, .photo-sep').forEach(p => { p.style.height = '5%'; });
+  gallery.appendChild(initial);
+  updateMeta(0);
+  expandPanels(initial);
+</script>
+</body>
+</html>
