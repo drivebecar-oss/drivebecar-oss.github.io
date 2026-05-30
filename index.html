@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LENSCRAFT</title>
+  <!-- 배포용 데이터 파일 (없어도 오류 없음) -->
+  <script>window.INITIAL_DATA = null;</script>
+  <script src="data.js" onerror=""></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -500,6 +503,7 @@
       <button class="btn-arrow" id="btn-prev" aria-label="이전">&#8592;</button>
       <button class="btn-arrow" id="btn-next" aria-label="다음">&#8594;</button>
     </div>
+    <button class="btn-arrow btn-export" id="btn-export" title="배포용 데이터 저장" style="margin-top:6px;font-size:12px;letter-spacing:0.05em;width:auto;padding:0 10px;">SAVE</button>
   </div>
 </footer>
 
@@ -646,16 +650,53 @@
   }
 
   function loadFromStorage() {
+    /* 1순위: localStorage (로컬 최신 편집) */
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
-      saved.forEach((item, i) => {
+      if (saved.length) {
+        saved.forEach((item, i) => {
+          if (!PHOTOS[i] || !item) return;
+          if (item.title !== undefined) PHOTOS[i].title = item.title;
+          if (item.meta  !== undefined) PHOTOS[i].meta  = item.meta;
+          if (item.desc  !== undefined) PHOTOS[i].desc  = item.desc;
+        });
+        return;
+      }
+    } catch (e) {}
+
+    /* 2순위: window.INITIAL_DATA (소스코드에 구워진 배포용 데이터) */
+    if (window.INITIAL_DATA && window.INITIAL_DATA.length) {
+      window.INITIAL_DATA.forEach((item, i) => {
         if (!PHOTOS[i] || !item) return;
         if (item.title !== undefined) PHOTOS[i].title = item.title;
         if (item.meta  !== undefined) PHOTOS[i].meta  = item.meta;
         if (item.desc  !== undefined) PHOTOS[i].desc  = item.desc;
       });
-    } catch (e) {}
+    }
   }
+
+  /* Ctrl+Shift+E — 현재 데이터를 소스코드에 붙여넣을 수 있는 형태로 클립보드 복사 */
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+      const data = PHOTOS.map(p => ({
+        title: p.title || '',
+        meta:  p.meta  || `${p.year} — ${p.category}`,
+        desc:  (p.desc === '—' ? '' : p.desc) || ''
+      }));
+      const snippet =
+        `  /* ── 배포용 데이터 (Ctrl+Shift+E 로 생성) ── */\n` +
+        `  window.INITIAL_DATA = ${JSON.stringify(data, null, 2)};\n`;
+      navigator.clipboard.writeText(snippet).then(() => {
+        alert(
+          '✅ 클립보드에 복사됐어요!\n\n' +
+          '방법:\n' +
+          '1. index.html 을 열고\n' +
+          '2. <\/script> 바로 앞 줄에 붙여넣기\n' +
+          '3. 저장 후 재배포'
+        );
+      });
+    }
+  });
 
   /* 제목·메타·설명 입력 시 현재 사진에 저장 + localStorage 업데이트 */
   titleEl.addEventListener('input', () => { PHOTOS[current].title = titleEl.textContent; saveToStorage(); });
@@ -760,6 +801,22 @@
   /* 버튼 이벤트 */
   document.getElementById('btn-prev').addEventListener('click', () => go(-1));
   document.getElementById('btn-next').addEventListener('click', () => go(1));
+
+  /* SAVE 버튼 — 현재 데이터를 data.js 로 다운로드 */
+  document.getElementById('btn-export').addEventListener('click', () => {
+    const data = PHOTOS.map(p => ({
+      title: p.title || '',
+      meta:  p.meta  || `${p.year} — ${p.category}`,
+      desc:  (p.desc === '—' ? '' : p.desc) || ''
+    }));
+    const content = `window.INITIAL_DATA = ${JSON.stringify(data, null, 2)};`;
+    const blob = new Blob([content], { type: 'text/javascript' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'data.js';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 
   /* 키보드 */
   document.addEventListener('keydown', e => {
